@@ -1,0 +1,8 @@
+services:
+  game:
+    build:
+      context: ./client  # Zmienia katalog kontekstu budowy na podkatalog 'client'
+    volumes:
+      - .:/app
+    stdin_open: true
+    tty: true
