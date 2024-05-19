@@ -1,6 +1,7 @@
 import curses
 import random
 from curses import textpad
+import time
 
 
 def create_food(snake, displayBox):
@@ -22,6 +23,11 @@ def print_level(stdscr, screenWidth, level):
 
 def main(stdscr):
     curses.curs_set(0)
+    stdscr.clear() 
+    stdscr.addstr("Witaj w grze Snake! Naciśnij dowolny klawisz, aby kontynuować...")
+    stdscr.refresh()
+    stdscr.getch() 
+    stdscr.clear() 
     # like sleep in while 1:
     timeout = 200
     stdscr.timeout(timeout)
