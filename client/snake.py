@@ -7,7 +7,7 @@ def create_food(snake, displayBox):
     food = None
     while food is None:
         food = [random.randint(displayBox[0][0]+1, displayBox[1][0]-1), random.randint(displayBox[0][1]+1, displayBox[1][1]-1)]
-        if food in snake:
+        if snake in food:
             food = None
     return food
 
@@ -49,9 +49,10 @@ def main(stdscr):
         stdscr.addstr(y, x, "#")
         # stdscr.refresh()
 
-
-    food = create_food(snake, displayBox)
-    stdscr.addstr(food[0], food[1], "*")
+    food = [create_food(snake, displayBox)]
+    food.append(create_food(snake, displayBox))
+    for y, x in food:
+        stdscr.addstr(y, x, "*")
 
     while True:
         if score % (4 * level) == 0 and score != 0:
@@ -88,11 +89,15 @@ def main(stdscr):
         
         stdscr.addstr(new_head[0], new_head[1], '#')
 
-        if snake[0] == food:
-            food = create_food(snake, displayBox)
-            stdscr.addstr(food[0], food[1], "*")
+        if snake[0] in food:
+            print("FOOD 1. : ", len(food))
+            food.remove(snake[0])
+            new_food = create_food(snake, displayBox)
+            stdscr.addstr(new_food[0], new_food[1], "*")
+            food.append(new_food)
             score += 1
             print_score(stdscr, screenWidth, score)
+            print("FOOD 2. : ", len(food))
         else: 
             stdscr.addstr(snake[-1][0], snake[-1][1],  ' ')
             snake.pop()
