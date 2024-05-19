@@ -18,7 +18,6 @@ def print_score(stdsrc, screenWidth, score):
 
 def main(stdscr):
     curses.curs_set(0)
-    stdscr.nodelay(1)
     # like sleep in while 1:
     stdscr.timeout(150)
     screenHeight, screenWidth = stdscr.getmaxyx()
@@ -47,13 +46,17 @@ def main(stdscr):
     food = create_food(snake, displayBox)
     stdscr.addstr(food[0], food[1], "*")
 
-    while 1:
+    while True:
+        previous_direction = direction
         # we are blocking the key for only 150 by default - then runs the loop what keeps snake moving
         key = stdscr.getch()
 
-        # we need to know if snake direction is changing
         if key in [curses.KEY_RIGHT, curses.KEY_LEFT, curses.KEY_UP, curses.KEY_DOWN]:
-            direction = key
+            if (key == curses.KEY_RIGHT and previous_direction != curses.KEY_LEFT) or \
+                (key == curses.KEY_LEFT and previous_direction != curses.KEY_RIGHT) or \
+                (key == curses.KEY_UP and previous_direction != curses.KEY_DOWN) or \
+                (key == curses.KEY_DOWN and previous_direction != curses.KEY_UP):
+                    direction = key
 
         head = snake[0]
         
@@ -67,11 +70,10 @@ def main(stdscr):
             case curses.KEY_DOWN:
                 new_head = [head[0] + 1, head[1]]
 
+
         snake.insert(0, new_head)   
         
         stdscr.addstr(new_head[0], new_head[1], '#')
-
-  
 
         if snake[0] == food:
             food = create_food(snake, displayBox)
@@ -88,9 +90,5 @@ def main(stdscr):
             stdscr.nodelay(0)
             stdscr.getch()
             break
-
-
-
-    stdscr.getch()
 
 curses.wrapper(main)
