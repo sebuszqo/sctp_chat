@@ -24,7 +24,7 @@ def print_level(stdscr, screenWidth, level):
 def main(stdscr):
     curses.curs_set(0)
     stdscr.clear() 
-    stdscr.addstr("Witaj w grze Snake! Naciśnij dowolny klawisz, aby kontynuować...")
+    stdscr.addstr("Hello in Snake game, please click something to start the game")
     stdscr.refresh()
     stdscr.getch() 
     stdscr.clear() 
