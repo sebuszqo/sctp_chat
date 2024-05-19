@@ -12,13 +12,13 @@ def create_food(snake, displayBox):
     return food
 
 def print_score(stdsrc, screenWidth, score):
-    score_msg = f'SCORE: {score}'
+    score_msg = f'| SCORE: {score} |'
     stdsrc.addstr(1, screenWidth // 2 - len(score_msg) // 2, score_msg)
     # stdsrc.refresh()
 
 def print_level(stdscr, screenWidth, level):
-    level_message = f'LEVEL: {level}'
-    stdscr.addstr(2, screenWidth // 2 - len(level_message), level_message)
+    level_message = f'| LEVEL: {level} |'
+    stdscr.addstr(2, screenWidth // 2 - len(level_message) // 2, level_message)
 
 def main(stdscr):
     curses.curs_set(0)
@@ -90,14 +90,12 @@ def main(stdscr):
         stdscr.addstr(new_head[0], new_head[1], '#')
 
         if snake[0] in food:
-            print("FOOD 1. : ", len(food))
             food.remove(snake[0])
             new_food = create_food(snake, displayBox)
             stdscr.addstr(new_food[0], new_food[1], "*")
             food.append(new_food)
             score += 1
             print_score(stdscr, screenWidth, score)
-            print("FOOD 2. : ", len(food))
         else: 
             stdscr.addstr(snake[-1][0], snake[-1][1],  ' ')
             snake.pop()
