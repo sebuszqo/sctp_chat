@@ -16,6 +16,10 @@ def print_score(stdsrc, screenWidth, score):
     stdsrc.addstr(1, screenWidth // 2 - len(score_msg) // 2, score_msg)
     # stdsrc.refresh()
 
+def print_level(stdscr, screenWidth, level):
+    level_message = f'LEVEL: {level}'
+    stdscr.addstr(2, screenWidth // 2 - len(level_message), level_message)
+
 def main(stdscr):
     curses.curs_set(0)
     # like sleep in while 1:
@@ -34,6 +38,8 @@ def main(stdscr):
     score = 0
     print_score(stdscr, screenWidth, score)
     
+    level = 1
+    print_level(stdscr, screenWidth, level)
     
     # direction where snake needs to go - default is right
     direction = curses.KEY_RIGHT
@@ -48,8 +54,10 @@ def main(stdscr):
     stdscr.addstr(food[0], food[1], "*")
 
     while True:
-        if score % 5 == 0:
-            timeout = max(50, timeout - 15)
+        if score % (4 * level) == 0 and score != 0:
+            timeout = max(50, timeout - 40)
+            level += 1
+            print_level(stdscr, screenWidth, level)
             stdscr.timeout(timeout)
     
         previous_direction = direction
