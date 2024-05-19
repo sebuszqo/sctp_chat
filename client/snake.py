@@ -19,7 +19,8 @@ def print_score(stdsrc, screenWidth, score):
 def main(stdscr):
     curses.curs_set(0)
     # like sleep in while 1:
-    stdscr.timeout(150)
+    timeout = 200
+    stdscr.timeout(timeout)
     screenHeight, screenWidth = stdscr.getmaxyx()
 
     # corner values
@@ -47,6 +48,10 @@ def main(stdscr):
     stdscr.addstr(food[0], food[1], "*")
 
     while True:
+        if score % 5 == 0:
+            timeout = max(50, timeout - 15)
+            stdscr.timeout(timeout)
+    
         previous_direction = direction
         # we are blocking the key for only 150 by default - then runs the loop what keeps snake moving
         key = stdscr.getch()
