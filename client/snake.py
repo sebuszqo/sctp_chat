@@ -21,7 +21,7 @@ def print_level(stdscr, screenWidth, level):
     level_message = f'| LEVEL: {level} |'
     stdscr.addstr(2, screenWidth // 2 - len(level_message) // 2, level_message)
 
-def main(stdscr):
+def play(stdscr):
     curses.curs_set(0)
     stdscr.clear() 
     stdscr.addstr("Hello in Snake game, please click something to start the game")
@@ -71,6 +71,8 @@ def main(stdscr):
         # we are blocking the key for only 150 by default - then runs the loop what keeps snake moving
         key = stdscr.getch()
 
+
+        # prohibit player to move opposite direction during game
         if key in [curses.KEY_RIGHT, curses.KEY_LEFT, curses.KEY_UP, curses.KEY_DOWN]:
             if (key == curses.KEY_RIGHT and previous_direction != curses.KEY_LEFT) or \
                 (key == curses.KEY_LEFT and previous_direction != curses.KEY_RIGHT) or \
@@ -112,5 +114,12 @@ def main(stdscr):
             stdscr.nodelay(0)
             stdscr.getch()
             break
+    return score
 
-curses.wrapper(main)
+def main():
+    time.sleep(2)
+    score = curses.wrapper(play)
+    time.sleep(10)
+
+
+main()
