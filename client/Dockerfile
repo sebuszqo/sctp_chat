@@ -1,7 +1,6 @@
-FROM python:3.10-slim
+FROM python:3.8-slim
 
 WORKDIR /app
+COPY client.py .
 
-COPY . /app
-
-ENTRYPOINT ["tail", "-f", "/dev/null"]
+CMD ["sleep", "infinity"]
