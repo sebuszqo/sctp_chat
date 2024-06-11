@@ -6,22 +6,22 @@ services:
       context: ./client
       dockerfile: Dockerfile
     volumes:
-      - ./client:/app  # Zmapuj lokalny katalog client na /app w kontenerze
+      - ./client:/app 
     networks:
       - mynetwork
-    stdin_open: true  # Otwiera stdin dla interaktywności
-    tty: true         # Uruchamia terminal
+    stdin_open: true 
+    tty: true        
 
   server:
     build:
       context: ./server
       dockerfile: Dockerfile
     volumes:
-      - ./server:/app  # Zmapuj lokalny katalog server na /app w kontenerze
+      - ./server:/app
     networks:
       - mynetwork
-    stdin_open: true  # Otwiera stdin dla interaktywności
-    tty: true         # Uruchamia terminal
+    stdin_open: true 
+    tty: true       
 
 networks:
   mynetwork:
