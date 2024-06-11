@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
@@ -246,6 +247,44 @@ func GenerateKeyPair() (*KeyPair, error) {
 		PublicKey:  string(publicKeyPEM),
 		privateKey: string(privateKeyPEM),
 	}, nil
+}
+
+func EncryptWithPublicKey(msg string, pubPEM string) ([]byte, error) {
+	block, _ := pem.Decode([]byte(pubPEM))
+	if block == nil {
+		return nil, fmt.Errorf("public key error")
+	}
+
+	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	publicKey, ok := pub.(*rsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("not an RSA public key")
+	}
+
+	return rsa.EncryptOAEP(sha256.New(), rand.Reader, publicKey, []byte(msg), nil)
+}
+
+func DecryptWithPrivateKey(ciphertext []byte, privPEM string) (string, error) {
+	block, _ := pem.Decode([]byte(privPEM))
+	if block == nil {
+		return "", fmt.Errorf("private key error")
+	}
+
+	priv, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		return "", err
+	}
+
+	plaintext, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, priv, ciphertext, nil)
+	if err != nil {
+		return "", err
+	}
+
+	return string(plaintext), nil
 }
 
 func main() {
