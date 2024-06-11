@@ -1,8 +1,54 @@
+version: '3.8'
+
 services:
-  game:
+  client:
     build:
       context: ./client
+      dockerfile: Dockerfile
     volumes:
-      - .:/app
-    stdin_open: true
-    tty: true
+      - ./client:/app  # Zmapuj lokalny katalog client na /app w kontenerze
+    networks:
+      - mynetwork
+    stdin_open: true  # Otwiera stdin dla interaktywności
+    tty: true         # Uruchamia terminal
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    volumes:
+      - ./server:/app  # Zmapuj lokalny katalog server na /app w kontenerze
+    networks:
+      - mynetwork
+    stdin_open: true  # Otwiera stdin dla interaktywności
+    tty: true         # Uruchamia terminal
+
+networks:
+  mynetwork:
+    driver: bridge
+
+
+# version: '3.8'
+
+# services:
+#   client:
+#     build:
+#       context: ./client
+#       dockerfile: Dockerfile
+#     networks:
+#       - mynetwork
+#     stdin_open: true  # Otwiera stdin dla interaktywności
+#     tty: true         # Uruchamia terminal
+
+#   server:
+#     build:
+#       context: ./server
+#       dockerfile: Dockerfile
+#     networks:
+#       - mynetwork
+#     stdin_open: true  # Otwiera stdin dla interaktywności
+#     tty: true         # Uruchamia terminal
+
+# networks:
+#   mynetwork:
+#     driver: bridge
