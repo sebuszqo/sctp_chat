@@ -54,17 +54,11 @@ class TCP_Client:
         
     def sendMsg(self, message: str):
         try:
-            if not isinstance(message, bytes):
-                message = str(message).encode()
-            elif not isinstance(message, str):
-                raise ValueError("Message must be either str or bytes")
-            self.client_socket.send(message)
+            self.client_socket.send(json.dumps(message).encode())
             return not None
         except socket.error as e:
             print(f"Failed to send message. Error: {e}")
             return None
-        except ValueError:
-            print(f"Failed to send message. Error: {e}")
 
     def recvMsg(self, buffer_size=1024):
         try:
@@ -77,6 +71,30 @@ class TCP_Client:
     def close(self):
         if self.client_socket:
             self.client_socket.close()
+            
+    def register(self, username, password):
+        message = {
+            "command": "register",
+            "payload": {"username": username, "password": password}
+        }
+        self.sendMsg(message)
+        return self.recvMsg()
+
+    def login(self, username, password):
+        message = {
+            "command": "login",
+            "payload": {"username": username, "password": password}
+        }
+        self.sendMsg(message)
+        return self.recvMsg()
+
+    def start_game(self, username):
+        message = {
+            "command": "start_game",
+            "payload": {"username": username}
+        }
+        self.sendMsg(message)
+        return self.recvMsg()
         
 def main():
     multicast_group = '224.1.1.1'
@@ -111,23 +129,24 @@ def main():
         print("Connected to TCP server")
     except socket.error as e:
         print(f"Could not create client: {e}")
-        
-    message = "Hello, server !"
-    sendMsg = clientTCP.sendMsg(message)
-    if sendMsg is not None:
-        print(f"Send to server server: {message}")
-    else:
-        print("No response send to server.")
-        clientTCP.close()
-        return
     
-    recvMsg = clientTCP.recvMsg()
-    if recvMsg is not None:
-        print(f"Received from server: {recvMsg}")
-    else:
-        print("No response received from server.")
-        clientTCP.close()
-        return
+    print(clientTCP.register('player1', 'password123'))
+    # message = "Hello, server !"
+    # sendMsg = clientTCP.sendMsg(message)
+    # if sendMsg is not None:
+    #     print(f"Send to server server: {message}")
+    # else:
+    #     print("No response send to server.")
+    #     clientTCP.close()
+    #     return
+    
+    # recvMsg = clientTCP.recvMsg()
+    # if recvMsg is not None:
+    #     print(f"Received from server: {recvMsg}")
+    # else:
+    #     print("No response received from server.")
+    #     clientTCP.close()
+    #     return
 if __name__ == "__main__":
     main()
     print("Closing Client")

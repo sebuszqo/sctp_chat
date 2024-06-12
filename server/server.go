@@ -16,6 +16,58 @@ import (
 	"time"
 )
 
+type RegisterRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type RegisterResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
+type LoginRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type LoginResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
+type StartGameRequest struct {
+	Username string `json:"username"`
+}
+
+type StartGameResponse struct {
+	Success   bool             `json:"success"`
+	Message   string           `json:"message"`
+	Obstacles []map[string]int `json:"obstacles"`
+}
+
+type GameUpdate struct {
+	Obstacles []map[string]int `json:"obstacles"`
+	Players   []PlayerState    `json:"players"`
+}
+
+type PlayerState struct {
+	Username string `json:"username"`
+	X        int    `json:"x"`
+	Y        int    `json:"y"`
+	Length   int    `json:"length"`
+}
+
+type PlayerMove struct {
+	Username  string `json:"username"`
+	Direction string `json:"direction"`
+}
+
+type Message struct {
+	Command string      `json:"command"`
+	Payload interface{} `json:"payload"`
+}
+
 const multicastGroup = "224.1.1.1:5007"
 
 type multicastError struct {
@@ -165,9 +217,72 @@ func handleConnection(connFd int) {
 		if n == 0 {
 			return
 		}
-		log.Printf("Received message: %s", string(buffer[:n]))
-		syscall.Write(connFd, []byte("Hello Client !"))
-		log.Printf("Send message to client")
+
+		var msg Message
+		fmt.Println("BUFFER 1", string(buffer[:n]))
+		fmt.Println("BUFFER 2", string(buffer))
+		err = json.Unmarshal(buffer[:n], &msg)
+		if err != nil {
+			log.Printf("Error unmarshaling message: %v", err)
+			continue
+		}
+		switch msg.Command {
+		case "register":
+			var payload RegisterRequest
+			jsonPayload, _ := json.Marshal(msg.Payload)
+			json.Unmarshal(jsonPayload, &payload)
+			response := RegisterResponse{
+				Success: true,
+				Message: "Registration successful",
+			}
+			jsonResponse, _ := json.Marshal(Message{
+				Command: "register_response",
+				Payload: response,
+			})
+			syscall.Write(connFd, jsonResponse)
+
+		case "login":
+			var payload LoginRequest
+			jsonPayload, _ := json.Marshal(msg.Payload)
+			json.Unmarshal(jsonPayload, &payload)
+			response := LoginResponse{
+				Success: true,
+				Message: "Login successful",
+			}
+			jsonResponse, _ := json.Marshal(Message{
+				Command: "login_response",
+				Payload: response,
+			})
+			syscall.Write(connFd, jsonResponse)
+
+		case "start_game":
+			var payload StartGameRequest
+			jsonPayload, _ := json.Marshal(msg.Payload)
+			json.Unmarshal(jsonPayload, &payload)
+			response := StartGameResponse{
+				Success: true,
+				Message: "Game started",
+				Obstacles: []map[string]int{
+					{"x": 5, "y": 5},
+					{"x": 10, "y": 10},
+				},
+			}
+			jsonResponse, _ := json.Marshal(Message{
+				Command: "start_game_response",
+				Payload: response,
+			})
+			syscall.Write(connFd, jsonResponse)
+
+		case "player_move":
+			var payload PlayerMove
+			jsonPayload, _ := json.Marshal(msg.Payload)
+			json.Unmarshal(jsonPayload, &payload)
+			log.Printf("Player %s moved %s", payload.Username, payload.Direction)
+			// Update game state accordingly
+
+		default:
+			log.Printf("Unknown command: %s", msg.Command)
+		}
 
 	}
 }
