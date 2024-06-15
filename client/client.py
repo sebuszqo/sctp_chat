@@ -1,8 +1,32 @@
+import uuid
+import json
+from base64 import b64decode
+from Crypto.Cipher import AES
+from base64 import b64encode
+from Crypto.Cipher import AES
+from Crypto.Random import get_random_bytes
 import socket
 import json
 import struct
 from pydantic import BaseModel, ValidationError, field_validator
 from enum import Enum
+import base64
+from Crypto.Hash import SHA512
+from Crypto.PublicKey import RSA
+from Crypto.Cipher import PKCS1_OAEP
+from Crypto.Cipher import AES
+from Crypto.Random import get_random_bytes
+import Crypto.Random
+import hashlib
+import base64
+
+PASSWORD = b"pass"
+SALTLEN = 8
+KEYLEN = 32
+IVLEN = 16
+ITERATIONS = 10002
+ENCRYPT = 1
+DECRYPT = 0
 
 class Command(Enum):
     Start = 0
@@ -54,7 +78,7 @@ class TCP_Client:
         
     def sendMsg(self, message: str):
         try:
-            self.client_socket.send(json.dumps(message).encode())
+            self.client_socket.send(message)
             return not None
         except socket.error as e:
             print(f"Failed to send message. Error: {e}")
@@ -67,33 +91,85 @@ class TCP_Client:
         except socket.error as e:
             print(f"Failed to receive message. Error: {e}")
             return None
+    
+    # def decrypt_aes(self, encrypted_message, aes_key):
+    #     decoded = base64.b64decode(encrypted_message)
+    #     nonce, tag, ciphertext = decoded[:16], decoded[16:32], decoded[32:]
+    #     cipher_aes = AES.new(aes_key, AES.MODE_GCM, nonce=nonce)
+    #     plaintext = cipher_aes.decrypt(cipher_aes)
+    #     return plaintext.decode('utf-8')
+            
+    def encrypt_message(self, message, public_key_pem):
+        # message = base64.encode(message, message)
+        message = bytes(message, 'utf-8')
+        print("DLUGOSC",len( message))
+        key = RSA.importKey(public_key_pem)
+        cipher = PKCS1_OAEP.new(key, SHA512)
+        ciphertext = cipher.encrypt(message)
+        # key = RSA.importKey(open('private.pem').read())
+        # cipher = PKCS1_OAEP.new(key)
+        # message = cipher.decrypt(ciphertext)
+        # print("MESSAGE",message)
+        # encrypted_message_b64 = base64.b64encode(encrypted_message)
+        # print(f"Encrypted message (Base64): {encrypted_message_b64.decode('utf-8')}")  # Logowanie zaszyfrowanej wiadomości
+        return base64.b64encode(ciphertext).decode('utf-8')
 
+    def send_encrypted_message(self, message, public_key_pem):
+        encrypted_message = self.encrypt_message(json.dumps(message), public_key_pem)
+        # // dodałem kodowanie
+        encoded_message = base64.b64encode(encrypted_message)
+        # print(f"Sending encrypted message: {encrypted_message.decode('utf-8')}")  # Logowanie przed wysłaniem
+        self.sendMsg(encoded_message)
+    
     def close(self):
         if self.client_socket:
             self.client_socket.close()
-            
-    def register(self, username, password):
+    
+    def generate_challenge(self):
+        return get_random_bytes(16)     
+    
+    def challange(self, aes_key, publicKey):
+        print("AES KEY," ,base64.b64encode(aes_key).decode('utf-8'))
+        encrypted_message = self.encrypt_message(base64.b64encode(aes_key).decode('utf-8'), publicKey)
+        # // dodałem kodowanie
+        message = {
+            'command': 'exchange',
+            'aes_key': encrypted_message,
+        }
+        encoded_message = base64.b64encode(json.dumps(message).encode('utf-8'))
+        # print(f"Sending encrypted message: {encrypted_message.decode('utf-8')}")  # Logowanie przed wysłaniem
+        self.sendMsg(encoded_message)    
+    
+    def register(self, username, password, publicKey):
         message = {
             "command": "register",
             "payload": {"username": username, "password": password}
         }
-        self.sendMsg(message)
+        self.send_encrypted_message(message, publicKey)
         return self.recvMsg()
 
-    def login(self, username, password):
+    def login(self, username, password, publicKey):
         message = {
             "command": "login",
             "payload": {"username": username, "password": password}
         }
-        self.sendMsg(message)
+        self.send_encrypted_message(message, publicKey)
         return self.recvMsg()
 
-    def start_game(self, username):
+    def start_game(self, username, publicKey):
         message = {
             "command": "start_game",
             "payload": {"username": username}
         }
-        self.sendMsg(message)
+        self.send_encrypted_message(message, publicKey)
+        return self.recvMsg()
+
+    def player_move(self, username, direction, publicKey):
+        message = {
+            "command": "player_move",
+            "payload": {"username": username, "direction": direction}
+        }
+        self.send_encrypted_message(message, publicKey)
         return self.recvMsg()
         
 def main():
@@ -113,7 +189,8 @@ def main():
             try:
                 server_info = ServerInfo.model_validate_json(data.decode())
                 print(f"Received valid server info from {server_info.TCPConn.full_address()} - {server_info.Name}")
-                print(f"Public Key: {server_info.Command}")
+                # print(f"Public Key: {server_info.PublicKey}")
+                # print("SERVER", server_info)
                 break
             except ValidationError as ve:
                 print(f"Validation error: {ve}")
@@ -123,14 +200,63 @@ def main():
                 print(f"Unexpected error: {e}")
     finally:
         sock.close()
-
+        print("PUBLIC KEY", server_info.PublicKey)
     try:
         clientTCP = TCP_Client(server_info.get_IP(), int(server_info.get_Port()))
         print("Connected to TCP server")
     except socket.error as e:
         print(f"Could not create client: {e}")
+
+    aes_key = get_random_bytes(32)
+    # # print(f"AES key: {aes_key}")
+    # # challange = clientTCP.generate_challenge()
+    print(clientTCP.challange(aes_key, server_info.PublicKey))
+    # # encrypted_message = clientTCP.recvMsg(1024)
+    # print(str(encrypted_message))
+    # decrypted_response = clientTCP.decrypt_aes(aes_key, str(encrypted_message))
+    # print(decrypted_response)
+    # print("DECRYPTED STRING", str(decrypted_response.decode('utf-8')))
+    # response_data = json.loads(decrypted_response)
+    # print(response_data)
+
+
+    #  to dziala
+    # key = get_random_bytes(32)
+    # challange = get_random_bytes(8)
+    # id = uuid.uuid4()
+
+    # message = {
+    #         'command': 'siema',
+    #         'aes_key': base64.b64encode(key).decode('utf-8'),
+    #     }
+    # clientTCP.send_encrypted_message(message, server_info.PublicKey)
+    # data = json.dumps(message)
+
+    # tu jest AES
     
-    print(clientTCP.register('player1', 'password123'))
+    # key = get_random_bytes(32)
+    data = "Siema v2"
+    cipher = AES.new(aes_key, AES.MODE_CTR)
+    ct_bytes = cipher.encrypt(data.encode('utf-8'))
+    nonce = base64.b64encode(cipher.nonce).decode('utf-8')
+    ct = base64.b64encode(ct_bytes).decode('utf-8')
+    result = json.dumps({'command': "siema", 'nonce': nonce, 'cipher_text': ct})
+
+    print("Key:", base64.b64encode(aes_key).decode('utf-8'))
+    encoded_message = base64.b64encode(result.encode('utf-8'))
+    clientTCP.sendMsg(encoded_message)
+
+    try:
+        decoded_message = base64.b64decode(encoded_message)
+        b64 = json.loads(decoded_message)
+        nonce = base64.b64decode(b64['nonce'])
+        ct = base64.b64decode(b64['cipher_text'])
+        cipher = AES.new(aes_key, AES.MODE_CTR, nonce=nonce)
+        pt = cipher.decrypt(ct)
+        print("The message was:", pt.decode('utf-8'))
+    except (ValueError, KeyError) as e:
+        print("Incorrect decryption", e)
+    # print(clientTCP.register('player1', 'password123', server_info.PublicKey))
     # message = "Hello, server !"
     # sendMsg = clientTCP.sendMsg(message)
     # if sendMsg is not None:

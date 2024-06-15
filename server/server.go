@@ -1,13 +1,17 @@
 package main
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha256"
+	"crypto/sha512"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"strings"
@@ -19,6 +23,17 @@ import (
 type RegisterRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+}
+
+type DefaultRequest struct {
+	Command    string `json:"command"`
+	Nonce      string `json:"nonce"`
+	CipherText string `json:"cipher_text"`
+}
+
+type ExchangeRequest struct {
+	Command string `json:"command"`
+	AESKey  string `json:"aes_key"`
 }
 
 type RegisterResponse struct {
@@ -82,6 +97,7 @@ type Command int
 
 const (
 	Start Command = iota
+	Exchange
 	Stop
 	Restart
 	Status
@@ -109,8 +125,8 @@ type ServerConnection struct {
 }
 
 type KeyPair struct {
-	PublicKey  string
-	privateKey string
+	PublicKey  *rsa.PublicKey
+	PrivateKey *rsa.PrivateKey
 }
 
 type serverInfo struct {
@@ -162,17 +178,22 @@ func getLocalIP() (string, error) {
 	return "", fmt.Errorf("no active network interface found")
 }
 
-func startTCPServer(IPv4Address string) (ServerConnection, error) {
+func startTCPServer(IPv4Address string, port int, privatePEM *rsa.PrivateKey) (ServerConnection, error) {
 	fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
 	if err != nil {
 		return ServerConnection{}, err
 	}
 
-	addr := syscall.SockaddrInet4{Port: 3001, Addr: [4]byte(net.ParseIP(IPv4Address).To4())}
+	addr := syscall.SockaddrInet4{Port: port, Addr: [4]byte(net.ParseIP(IPv4Address).To4())}
 
 	err = syscall.Bind(fd, &addr)
 	if err != nil {
 		syscall.Close(fd)
+		return ServerConnection{}, err
+	}
+
+	if err := syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1); err != nil {
+		fmt.Printf("Error setting SO_REUSEADDR: %v\n", err)
 		return ServerConnection{}, err
 	}
 
@@ -190,21 +211,22 @@ func startTCPServer(IPv4Address string) (ServerConnection, error) {
 				log.Println("Failed to accept connection:", err)
 				continue
 			}
-			go handleConnection(connFd)
+			go handleConnection(connFd, privatePEM)
 		}
 	}()
 
 	serverConnConfig := ServerConnection{
 		IP:   IPv4Address,
-		Port: "3001",
+		Port: fmt.Sprint(port),
 	}
 
 	return serverConnConfig, nil
 }
 
-func handleConnection(connFd int) {
+func handleConnection(connFd int, privPEM *rsa.PrivateKey) {
 	defer syscall.Close(connFd)
 	buffer := make([]byte, 1024)
+	var decodedAES []byte
 	for {
 		n, err := syscall.Read(connFd, buffer)
 		if err != nil {
@@ -218,19 +240,84 @@ func handleConnection(connFd int) {
 			return
 		}
 
+		fmt.Println("OTRZUMAELM?", string(buffer[:n]))
+		// return
+		log.Printf("Received encrypted message: %s", string(buffer[:n]))
+
+		// ciphertext := buffer
+		// fmt.Println("CIPER", ciphertext)
+		// b64data := ciphertext[strings.IndexByte(string(ciphertext), ',')+1:]
+		// fmt.Println("B64", b64data)
+		// cipherTexttoDe, err := base64.StdEncoding.DecodeString(string(b64data))
+		// fmt.Println(cipherTexttoDe)
+		// if err != nil {
+		// log.Fatalln("ERROR TU", err)
+		// }
+		//  dodalem tutaj to
+		ciphertext, err := base64.StdEncoding.DecodeString(string(buffer[:n]))
+		if err != nil {
+			log.Println("BŁ/*  */")
+		}
+
+		fmt.Println("after BAse64", string(ciphertext))
+
 		var msg Message
-		fmt.Println("BUFFER 1", string(buffer[:n]))
-		fmt.Println("BUFFER 2", string(buffer))
-		err = json.Unmarshal(buffer[:n], &msg)
+		err = json.Unmarshal([]byte(ciphertext), &msg)
 		if err != nil {
 			log.Printf("Error unmarshaling message: %v", err)
 			continue
 		}
+
 		switch msg.Command {
+		case "exchange":
+			var payload ExchangeRequest
+			json.Unmarshal(ciphertext, &payload)
+			aesKEy, err := base64.StdEncoding.DecodeString(payload.AESKey)
+			if err != nil {
+				log.Fatalln("ERRRRRROR", err)
+			}
+			decryptedJSONPayload, err := DecryptWithPrivateKey(aesKEy, privPEM)
+			if err != nil {
+				log.Printf("Error decrypting message: %v", err)
+				continue
+			}
+			fmt.Println("DECRYPTED?", string(decryptedJSONPayload))
+			decodedAES = decryptedJSONPayload
+
+			// fmt.Println("AES b64", payload.AESKey)
+			// decodedAES, err = base64.StdEncoding.DecodeString(payload.AESKey)
+			// if err != nil {
+			// 	fmt.Println("ERROR AES !", err)
+			// }
+			// encryptedData, _ := EncryptAES([]byte(decodedAES), []byte("SUCCESS"))
+			// syscall.Write(connFd, []byte(base64Encode(encryptedData)))
+			// jsonData, err := json.Marshal(response)
+			// if err != nil {
+			// 	fmt.Println("Error marshaling map:", err)
+			// 	return
+			// }
+			// encryptedResponse, err := encryptAES(decodedAES, jsonData)
+			// if err != nil {
+			// 	fmt.Println("ERROR DURING AES ENCRYPTION", encryptedResponse)
+			// }
+			// syscall.Write(connFd, []byte(encryptedResponse))
+			// fmt.Println("SENDED: ", encryptedResponse)
+			// fmt.Println("SENDED byte: ", []byte(encryptedResponse))
+
+			// fmt.Println("AES b64", ba(payload.AESKey))
+			// fmt.Println("CHALLANGE b64", payload.Challenge)
+			// challenge, err := base64.StdEncoding.DecodeString(msg["challenge"])
+			// if err != nil {
+			// 	fmt.Println("Failed to decode challenge:", err)
+			// 	conn.Write([]byte("Failed to decode challenge"))
+			// 	return
+			// }
+			// fmt.Printf("Challenge: %x\n", challenge)
 		case "register":
 			var payload RegisterRequest
 			jsonPayload, _ := json.Marshal(msg.Payload)
 			json.Unmarshal(jsonPayload, &payload)
+			log.Printf("DECRYPTED PAYLOAD: %+v", payload)
 			response := RegisterResponse{
 				Success: true,
 				Message: "Registration successful",
@@ -244,7 +331,9 @@ func handleConnection(connFd int) {
 		case "login":
 			var payload LoginRequest
 			jsonPayload, _ := json.Marshal(msg.Payload)
+			log.Printf("ENCRYPTED PAYLOAD: %s", jsonPayload)
 			json.Unmarshal(jsonPayload, &payload)
+			log.Printf("DECRYPTED PAYLOAD: %+v", payload)
 			response := LoginResponse{
 				Success: true,
 				Message: "Login successful",
@@ -258,7 +347,9 @@ func handleConnection(connFd int) {
 		case "start_game":
 			var payload StartGameRequest
 			jsonPayload, _ := json.Marshal(msg.Payload)
+			log.Printf("ENCRYPTED PAYLOAD: %s", jsonPayload)
 			json.Unmarshal(jsonPayload, &payload)
+			log.Printf("DECRYPTED PAYLOAD: %+v", payload)
 			response := StartGameResponse{
 				Success: true,
 				Message: "Game started",
@@ -276,14 +367,20 @@ func handleConnection(connFd int) {
 		case "player_move":
 			var payload PlayerMove
 			jsonPayload, _ := json.Marshal(msg.Payload)
+			log.Printf("ENCRYPTED PAYLOAD: %s", jsonPayload)
 			json.Unmarshal(jsonPayload, &payload)
-			log.Printf("Player %s moved %s", payload.Username, payload.Direction)
-			// Update game state accordingly
-
-		default:
-			log.Printf("Unknown command: %s", msg.Command)
+			log.Printf("DECRYPTED PAYLOAD: %+v", payload)
+		case "siema":
+			var payload DefaultRequest
+			json.Unmarshal(ciphertext, &payload)
+			fmt.Println("DECRYPTING DATA", payload.Nonce, payload.CipherText, payload.Command)
+			aesKey, err := base64.StdEncoding.DecodeString(string(decodedAES))
+			decrypted, err := DecryptAES(aesKey, payload.Nonce, payload.CipherText)
+			if err != nil {
+				log.Fatalln("Error during AES decryption:", err)
+			}
+			fmt.Println("Decrypted data:", string(decrypted))
 		}
-
 	}
 }
 
@@ -333,96 +430,188 @@ func sendMulticast(multicastGroup string, serverInfo []byte, fd int, poll time.D
 	}
 }
 
-func GenerateKeyPair() (*KeyPair, error) {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+// func GenerateKeyPair() (*KeyPair, error) {
+// 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	publicKey := &privateKey.PublicKey
+
+// 	// Marshalowanie klucza prywatnego do PEM
+// 	privateKeyBytes := x509.MarshalPKCS1PrivateKey(privateKey)
+// 	privateKeyPEM := pem.EncodeToMemory(&pem.Block{
+// 		Type:  "RSA PRIVATE KEY",
+// 		Bytes: privateKeyBytes,
+// 	})
+
+// 	// Marshalowanie klucza publicznego do PEM
+// 	publicKeyBytes, err := x509.MarshalPKIXPublicKey(publicKey)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	publicKeyPEM := pem.EncodeToMemory(&pem.Block{
+// 		Type:  "RSA PUBLIC KEY",
+// 		Bytes: publicKeyBytes,
+// 	})
+
+// 	return &KeyPair{
+// 		PublicKey:  string(publicKeyPEM),
+// 		PrivateKey: string(privateKeyPEM),
+// 	}, nil
+// }
+
+func GenerateKeyPair(bits int) (KeyPair, error) {
+	privkey, err := rsa.GenerateKey(rand.Reader, bits)
 	if err != nil {
-		return nil, err
+		return KeyPair{}, err
 	}
 
-	publicKey := &privateKey.PublicKey
+	return KeyPair{PrivateKey: privkey, PublicKey: &privkey.PublicKey}, nil
+}
 
-	// Marshalowanie klucza prywatnego do PEM
-	privateKeyBytes := x509.MarshalPKCS1PrivateKey(privateKey)
-	privateKeyPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: privateKeyBytes,
-	})
-
-	// Marshalowanie klucza publicznego do PEM
-	publicKeyBytes, err := x509.MarshalPKIXPublicKey(publicKey)
+func PublicKeyToBytes(pub *rsa.PublicKey) []byte {
+	pubASN1, err := x509.MarshalPKIXPublicKey(pub)
 	if err != nil {
-		return nil, err
+		log.Fatal(err)
 	}
-	publicKeyPEM := pem.EncodeToMemory(&pem.Block{
+
+	pubBytes := pem.EncodeToMemory(&pem.Block{
 		Type:  "RSA PUBLIC KEY",
-		Bytes: publicKeyBytes,
+		Bytes: pubASN1,
 	})
 
-	return &KeyPair{
-		PublicKey:  string(publicKeyPEM),
-		privateKey: string(privateKeyPEM),
-	}, nil
+	return pubBytes
 }
 
-func EncryptWithPublicKey(msg string, pubPEM string) ([]byte, error) {
-	block, _ := pem.Decode([]byte(pubPEM))
-	if block == nil {
-		return nil, fmt.Errorf("public key error")
-	}
+func PrivateKeyToBytes(priv *rsa.PrivateKey) []byte {
+	privBytes := pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "RSA PRIVATE KEY",
+			Bytes: x509.MarshalPKCS1PrivateKey(priv),
+		},
+	)
 
-	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	return privBytes
+}
+
+// EncryptWithPublicKey encrypts data with public key
+func EncryptWithPublicKey(msg []byte, pub *rsa.PublicKey) []byte {
+	hash := sha512.New()
+	ciphertext, err := rsa.EncryptOAEP(hash, rand.Reader, pub, msg, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return ciphertext
+}
+
+// DecryptWithPrivateKey decrypts data with private key
+func DecryptWithPrivateKey(ciphertext []byte, priv *rsa.PrivateKey) ([]byte, error) {
+	hash := sha512.New()
+	plaintext, err := rsa.DecryptOAEP(hash, rand.Reader, priv, ciphertext, nil)
+	if err != nil {
+		return nil, err
+	}
+	return plaintext, nil
+}
+
+func base64Encode(src []byte) string {
+	return base64.StdEncoding.EncodeToString(src)
+}
+
+func base64Decode(src []byte) ([]byte, error) {
+	return base64.StdEncoding.DecodeString(string(src))
+}
+
+func DecryptAES(key []byte, nonceB64 string, ciphertextB64 string) ([]byte, error) {
+	nonce, err := base64.StdEncoding.DecodeString(nonceB64)
 	if err != nil {
 		return nil, err
 	}
 
-	publicKey, ok := pub.(*rsa.PublicKey)
-	if !ok {
-		return nil, fmt.Errorf("not an RSA public key")
+	ciphertext, err := base64.StdEncoding.DecodeString(ciphertextB64)
+	if err != nil {
+		return nil, err
 	}
 
-	return rsa.EncryptOAEP(sha256.New(), rand.Reader, publicKey, []byte(msg), nil)
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	// Ensure nonce length is appropriate
+	if len(nonce) != 8 {
+		return nil, fmt.Errorf("nonce length must be 8 bytes, got %d bytes", len(nonce))
+	}
+
+	// Create a 16-byte IV for AES-CTR
+	iv := make([]byte, aes.BlockSize)
+	copy(iv, nonce)
+
+	stream := cipher.NewCTR(block, iv)
+	plaintext := make([]byte, len(ciphertext))
+	stream.XORKeyStream(plaintext, ciphertext)
+
+	return plaintext, nil
 }
 
-func DecryptWithPrivateKey(ciphertext []byte, privPEM string) (string, error) {
-	block, _ := pem.Decode([]byte(privPEM))
-	if block == nil {
-		return "", fmt.Errorf("private key error")
-	}
-
-	priv, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+// EncryptAES encrypts data using AES in CTR mode.
+func EncryptAES(key, data []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	plaintext, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, priv, ciphertext, nil)
+	nonce := make([]byte, block.BlockSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, err
+	}
+
+	stream := cipher.NewCTR(block, nonce)
+	ciphertext := make([]byte, len(data))
+	stream.XORKeyStream(ciphertext, data)
+
+	result := map[string]string{
+		"nonce":      base64.StdEncoding.EncodeToString(nonce),
+		"ciphertext": base64.StdEncoding.EncodeToString(ciphertext),
+	}
+
+	jsonData, err := json.Marshal(result)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return string(plaintext), nil
+	return jsonData, nil
 }
 
 func main() {
-	keyPair, err := GenerateKeyPair()
+	keyPair, err := GenerateKeyPair(2048)
 	if err != nil {
 		log.Fatalln(err)
 	}
+	publicKey := PublicKeyToBytes(keyPair.PublicKey)
+	privateKey := PrivateKeyToBytes(keyPair.PrivateKey)
+	fmt.Println("PRIVATE", string(privateKey))
+	fmt.Println("PRIVATE", *keyPair.PrivateKey)
+	fmt.Println("PUBLIC", string(publicKey))
 
 	IPv4Address, err := getLocalIP()
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
 
-	serverConnConfig, err := startTCPServer(IPv4Address)
+	serverConnConfig, err := startTCPServer(IPv4Address, 3001, keyPair.PrivateKey)
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
+
+	fmt.Println(keyPair.PrivateKey)
 	gameType := snake
 	server := serverInfo{
 		Name:      "Serwer to play games",
 		GameType:  gameType,
 		TCPConn:   serverConnConfig,
-		PublicKey: keyPair.PublicKey,
+		PublicKey: string(publicKey),
 		Command:   Start,
 	}
 	serverInfo, conn, err := configureUDP(server)
@@ -432,7 +621,7 @@ func main() {
 
 	const maxAttempts = 5
 	attemptCount := 0
-	sendMulticastFor := 10 * time.Second
+	sendMulticastFor := 200 * time.Second
 
 	var multicastWaitGroup sync.WaitGroup
 
