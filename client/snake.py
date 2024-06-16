@@ -2,7 +2,8 @@ import curses
 import random
 from curses import textpad
 import time
-
+from client import receive_udp_multicast, create_tcp_client
+import json
 
 def create_food(snake, displayBox):
     food = None
@@ -20,6 +21,7 @@ def print_score(stdsrc, screenWidth, score):
 def print_level(stdscr, screenWidth, level):
     level_message = f'| LEVEL: {level} |'
     stdscr.addstr(2, screenWidth // 2 - len(level_message) // 2, level_message)
+    
 
 def play(stdscr):
     curses.curs_set(0)
@@ -114,12 +116,88 @@ def play(stdscr):
             stdscr.nodelay(0)
             stdscr.getch()
             break
-    return score
-
-def main():
-    time.sleep(2)
-    score = curses.wrapper(play)
-    time.sleep(10)
+    return score, level
 
 
-main()
+def start_game(stdscr):
+    curses.curs_set(1)
+    stdscr.clear()
+    stdscr.addstr("Connecting to Game server\n")
+    stdscr.refresh()
+
+    server_info = receive_udp_multicast()
+   
+    stdscr.addstr(f"Received server info: {server_info}\n")
+    stdscr.refresh()
+    tcp_client = create_tcp_client(server_info)
+    tcp_client.challange(server_info.PublicKey)
+    stdscr.addstr("Keys exchanged. Starting game...\n")
+    stdscr.refresh()
+    return tcp_client
+
+def login(stdscr, tcp_client):
+    curses.curs_set(1)
+    stdscr.clear()
+    stdscr.addstr("Login to Snake Game\n")
+    stdscr.addstr("Username: ")
+    curses.echo()
+    username = stdscr.getstr().decode('utf-8')
+    stdscr.addstr("Password: ")
+    password = stdscr.getstr().decode('utf-8') 
+    tcp_client.login(username, password)
+    login_response = json.loads(tcp_client.recv_aes())
+    if not login_response['success']:
+        stdscr.addstr(f"Invalid credentials, try again!\n")
+        stdscr.refresh()
+        time.sleep(2)
+        return login(stdscr, tcp_client)
+    curses.noecho()
+    stdscr.clear()
+    
+    stdscr.addstr(f"Welcome {username}!\n")
+    stdscr.refresh()
+    stdscr.getch()
+    return username
+
+def main_menu(stdscr, username, tcp_client):
+    while True:
+        stdscr.clear()
+        stdscr.addstr(f"Welcome {username}!\n")
+        stdscr.addstr("1. Play Game\n")
+        stdscr.addstr("2. View Last Games\n")
+        stdscr.addstr("3. View High Scores\n")
+        stdscr.addstr("4. Exit\n")
+        stdscr.refresh()
+        choice = stdscr.getch()
+
+        if choice == ord('1'):
+            score, level = play(stdscr)
+            tcp_client.new_game(score, level)
+        elif choice == ord('2'):
+            view_last_games(stdscr)
+        elif choice == ord('3'):
+            view_high_scores(stdscr)
+        elif choice == ord('4'):
+            break
+
+def view_last_games(stdscr):
+    stdscr.clear()
+    stdscr.addstr("Last Games:\n")
+    stdscr.addstr("No games played yet.\n")
+    stdscr.addstr("Press any key to return to the main menu...")
+    stdscr.getch()
+
+def view_high_scores(stdscr):
+    stdscr.clear()
+    stdscr.addstr("High Scores:\n")
+    stdscr.addstr("No high scores yet.\n")
+    stdscr.addstr("Press any key to return to the main menu...")
+    stdscr.getch()
+    
+def main(stdscr):
+    tcp_client = start_game(stdscr)
+    username = login(stdscr, tcp_client)
+    main_menu(stdscr, username, tcp_client)
+
+if __name__ == "__main__":
+    curses.wrapper(main)

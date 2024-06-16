@@ -47,12 +47,16 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
+	Success bool `json:"success"`
 }
 
 type StartGameRequest struct {
 	Username string `json:"username"`
+}
+
+type NewGameRequest struct {
+	Score string `json:"score"`
+	Level string `json:"level"`
 }
 
 type StartGameResponse struct {
@@ -137,6 +141,22 @@ type serverInfo struct {
 	Command   Command
 }
 
+type User struct {
+	ID       string
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+var users map[string]User
+
+func init() {
+	users = map[string]User{
+		"user1": {ID: "1", Username: "user1", Password: "password1"},
+		"user2": {ID: "2", Username: "user2", Password: "password2"},
+		"user3": {ID: "3", Username: "user3", Password: "password3"},
+	}
+}
+
 func getLocalIP() (string, error) {
 	interfaces, err := net.Interfaces()
 	if err != nil {
@@ -176,6 +196,19 @@ func getLocalIP() (string, error) {
 	}
 
 	return "", fmt.Errorf("no active network interface found")
+}
+
+func tryToStartTCPServer(IPv4Address string, minPort, maxPort int, privateKey *rsa.PrivateKey) (ServerConnection, error) {
+	for port := minPort; port <= maxPort; port++ {
+		serverConnConfig, err := startTCPServer(IPv4Address, port, privateKey)
+		if err == nil {
+			return serverConnConfig, nil
+		}
+		if err != syscall.EADDRINUSE {
+			log.Printf("Failed to start server on port %d: %v", port, err)
+		}
+	}
+	return ServerConnection{}, fmt.Errorf("no available ports in range %d-%d", minPort, maxPort)
 }
 
 func startTCPServer(IPv4Address string, port int, privatePEM *rsa.PrivateKey) (ServerConnection, error) {
@@ -226,6 +259,7 @@ func startTCPServer(IPv4Address string, port int, privatePEM *rsa.PrivateKey) (S
 func handleConnection(connFd int, privPEM *rsa.PrivateKey) {
 	defer syscall.Close(connFd)
 	buffer := make([]byte, 1024)
+	logged := false
 	var decodedAES []byte
 	for {
 		n, err := syscall.Read(connFd, buffer)
@@ -268,6 +302,7 @@ func handleConnection(connFd int, privPEM *rsa.PrivateKey) {
 			continue
 		}
 
+		fmt.Println("MESSAGE COMMAND", msg.Command)
 		switch msg.Command {
 		case "exchange":
 			var payload ExchangeRequest
@@ -283,36 +318,6 @@ func handleConnection(connFd int, privPEM *rsa.PrivateKey) {
 			}
 			fmt.Println("DECRYPTED?", string(decryptedJSONPayload))
 			decodedAES = decryptedJSONPayload
-
-			// fmt.Println("AES b64", payload.AESKey)
-			// decodedAES, err = base64.StdEncoding.DecodeString(payload.AESKey)
-			// if err != nil {
-			// 	fmt.Println("ERROR AES !", err)
-			// }
-			// encryptedData, _ := EncryptAES([]byte(decodedAES), []byte("SUCCESS"))
-			// syscall.Write(connFd, []byte(base64Encode(encryptedData)))
-			// jsonData, err := json.Marshal(response)
-			// if err != nil {
-			// 	fmt.Println("Error marshaling map:", err)
-			// 	return
-			// }
-			// encryptedResponse, err := encryptAES(decodedAES, jsonData)
-			// if err != nil {
-			// 	fmt.Println("ERROR DURING AES ENCRYPTION", encryptedResponse)
-			// }
-			// syscall.Write(connFd, []byte(encryptedResponse))
-			// fmt.Println("SENDED: ", encryptedResponse)
-			// fmt.Println("SENDED byte: ", []byte(encryptedResponse))
-
-			// fmt.Println("AES b64", ba(payload.AESKey))
-			// fmt.Println("CHALLANGE b64", payload.Challenge)
-			// challenge, err := base64.StdEncoding.DecodeString(msg["challenge"])
-			// if err != nil {
-			// 	fmt.Println("Failed to decode challenge:", err)
-			// 	conn.Write([]byte("Failed to decode challenge"))
-			// 	return
-			// }
-			// fmt.Printf("Challenge: %x\n", challenge)
 		case "register":
 			var payload RegisterRequest
 			jsonPayload, _ := json.Marshal(msg.Payload)
@@ -329,40 +334,55 @@ func handleConnection(connFd int, privPEM *rsa.PrivateKey) {
 			syscall.Write(connFd, jsonResponse)
 
 		case "login":
-			var payload LoginRequest
-			jsonPayload, _ := json.Marshal(msg.Payload)
-			log.Printf("ENCRYPTED PAYLOAD: %s", jsonPayload)
-			json.Unmarshal(jsonPayload, &payload)
-			log.Printf("DECRYPTED PAYLOAD: %+v", payload)
-			response := LoginResponse{
-				Success: true,
-				Message: "Login successful",
+			var payload DefaultRequest
+			json.Unmarshal(ciphertext, &payload)
+			fmt.Println("DECRYPTING DATA", payload.Nonce, payload.CipherText, payload.Command)
+			aesKey, err := base64.StdEncoding.DecodeString(string(decodedAES))
+			decrypted, err := DecryptAES(aesKey, payload.Nonce, payload.CipherText)
+			if err != nil {
+				log.Fatalln("Error during AES decryption:", err)
 			}
-			jsonResponse, _ := json.Marshal(Message{
-				Command: "login_response",
-				Payload: response,
+			var incomingUser User
+			json.Unmarshal(decrypted, &incomingUser)
+			fmt.Println("Decrypted data:", string(decrypted))
+			for login, user := range users {
+				if login == incomingUser.Username && user.Password == incomingUser.Password {
+					logged = true
+					fmt.Printf("USER: %s logged \n", login)
+				}
+			}
+			data, err := json.Marshal(LoginResponse{
+				Success: logged,
 			})
-			syscall.Write(connFd, jsonResponse)
 
-		case "start_game":
-			var payload StartGameRequest
-			jsonPayload, _ := json.Marshal(msg.Payload)
-			log.Printf("ENCRYPTED PAYLOAD: %s", jsonPayload)
-			json.Unmarshal(jsonPayload, &payload)
-			log.Printf("DECRYPTED PAYLOAD: %+v", payload)
-			response := StartGameResponse{
-				Success: true,
-				Message: "Game started",
-				Obstacles: []map[string]int{
-					{"x": 5, "y": 5},
-					{"x": 10, "y": 10},
-				},
+			if err != nil {
+				log.Fatalln("ERROR DURING MARSHALING", err)
 			}
-			jsonResponse, _ := json.Marshal(Message{
-				Command: "start_game_response",
-				Payload: response,
-			})
-			syscall.Write(connFd, jsonResponse)
+			encyrption, err := EncryptAES(aesKey, data)
+			if err != nil {
+				log.Fatalln("ERRRR", err)
+			}
+			encrytedData := base64.StdEncoding.EncodeToString(encyrption)
+			syscall.Write(connFd, []byte(encrytedData))
+		case "new_game":
+			var payload DefaultRequest
+			json.Unmarshal(ciphertext, &payload)
+			fmt.Println("DECRYPTING DATA", payload.Nonce, payload.CipherText, payload.Command)
+			aesKey, err := base64.StdEncoding.DecodeString(string(decodedAES))
+			decrypted, err := DecryptAES(aesKey, payload.Nonce, payload.CipherText)
+			if err != nil {
+				log.Fatalln("Error during AES decryption:", err)
+			}
+			var user User
+			json.Unmarshal(decrypted, &user)
+			fmt.Println("Decrypted data:", string(decrypted))
+			siema := "siama witaj moj drugi czlowieku"
+			encyrption, err := EncryptAES(aesKey, []byte(siema))
+			if err != nil {
+				log.Fatalln("ERRRR", err)
+			}
+			encrytedData := base64.StdEncoding.EncodeToString(encyrption)
+			syscall.Write(connFd, []byte(encrytedData))
 
 		case "player_move":
 			var payload PlayerMove
@@ -379,7 +399,16 @@ func handleConnection(connFd int, privPEM *rsa.PrivateKey) {
 			if err != nil {
 				log.Fatalln("Error during AES decryption:", err)
 			}
+			var user User
+			json.Unmarshal(decrypted, &user)
 			fmt.Println("Decrypted data:", string(decrypted))
+			siema := "siama witaj moj drugi czlowieku"
+			encyrption, err := EncryptAES(aesKey, []byte(siema))
+			if err != nil {
+				log.Fatalln("ERRRR", err)
+			}
+			encrytedData := base64.StdEncoding.EncodeToString(encyrption)
+			syscall.Write(connFd, []byte(encrytedData))
 		}
 	}
 }
@@ -562,20 +591,25 @@ func EncryptAES(key, data []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	nonce := make([]byte, block.BlockSize())
+	nonce := make([]byte, 8)
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return nil, err
 	}
 
-	stream := cipher.NewCTR(block, nonce)
+	fullNonce := make([]byte, aes.BlockSize)
+	copy(fullNonce, nonce)
+
+	stream := cipher.NewCTR(block, fullNonce)
 	ciphertext := make([]byte, len(data))
 	stream.XORKeyStream(ciphertext, data)
 
 	result := map[string]string{
-		"nonce":      base64.StdEncoding.EncodeToString(nonce),
-		"ciphertext": base64.StdEncoding.EncodeToString(ciphertext),
+		"nonce":       base64.StdEncoding.EncodeToString(nonce),
+		"cipher_text": base64.StdEncoding.EncodeToString(ciphertext),
 	}
 
+	fmt.Println("NEW NONCE", result["nonce"])
+	fmt.Println("New cipher", result["cipher_text"])
 	jsonData, err := json.Marshal(result)
 	if err != nil {
 		return nil, err
@@ -600,7 +634,7 @@ func main() {
 		log.Fatalln(err.Error())
 	}
 
-	serverConnConfig, err := startTCPServer(IPv4Address, 3001, keyPair.PrivateKey)
+	serverConnConfig, err := tryToStartTCPServer(IPv4Address, 3000, 3010, keyPair.PrivateKey)
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
@@ -649,3 +683,14 @@ func main() {
 
 	fmt.Println("More than 5 attempts to restart multicast, closing app...")
 }
+
+// dodalem szyfrowanie AES + RSA
+// w tym momencie dziala wymiana kluczy za pomoca RSA a nastepnie jest wysylana wiadomosc z komenda "siema"
+// i wtedy ona jest rozczytywana i mozna sobie normalnie odczytać tą wiadomość i jakoś coś zrobić :D
+// teraz ogarnac to do konca - kazda komenda z szyfrowaniem
+// dodac wlaczanie i wylacznie gry
+// dodac zapisywanie wynikow
+// dodac generowanie jedzonka z serwera podczas gry
+// dodac mozliwosc pobierania statystyk
+// dodac mozliwosc logowania
+// dodac mozliwosc rejestrowania sie
