@@ -173,6 +173,10 @@ def main_menu(stdscr, username, tcp_client):
         if choice == ord('1'):
             score, level = play(stdscr)
             tcp_client.new_game(score, level)
+            new_game_response = json.loads(tcp_client.recv_aes())
+            if new_game_response['success'] != True:
+                stdscr.addstr(f"Failed to save data to the server!\n")
+                continue
         elif choice == ord('2'):
             view_last_games(stdscr)
         elif choice == ord('3'):
