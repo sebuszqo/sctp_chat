@@ -5,13 +5,6 @@
 **Pre-requisites:**
 - Install Docker and Docker Compose
 
-
-1. Clone this repo to your local machine.
-2. `cd` into the project directory.
-3. Edit `docker-compose.yml` to specify the number of client and server instances you need.
-4. Run the following to start your containers in the background:
-   `docker-compose up -d`
-
 **Setup Instructions:**
 1. Clone this repo to you local machine.
 2. `cd` into the project directory.
