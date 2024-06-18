@@ -2,9 +2,8 @@
 
 Currently in development stage
 
-How to run current stage?
 
-```docker-compose up -d --build```
+```docker-compose up -d```
 
 ```docker-compose exec game bash```
 
