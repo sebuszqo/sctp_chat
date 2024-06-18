@@ -1,11 +1,11 @@
 # SNAKE NETWORK GAME
 
-**Project currently in development stage**
+Project currently in development stage
 
-**Pre-requisites:**
+***Pre-requisites:***
 - Install Docker and Docker Compose
 
-**Setup Instructions:**
+***Setup Instructions:***
 1. Clone this repo to you local machine.
 2. `cd` into the project directory.
 3. Edit `docker-compose.yml` to specify the number of client and server instances you need. --> ( by default: 2 clients and 1 game server).
@@ -28,7 +28,7 @@
 7. To stop all containers use:
    ```docker-compose down```
 
-**Default Settings:**
+***Default Settings:***
 - By default, the server is configured to handle 3 players.
 - Default usernames and passwords for each player:
   - **Player 1:**
