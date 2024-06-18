@@ -14,11 +14,18 @@ import (
 	"io"
 	"log"
 	"net"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 )
+
+type ViewHighScoresResponse struct {
+	HighScores []HighScore `json:"high_scores"`
+	Success    bool        `json:"success"`
+}
 
 type RegisterRequest struct {
 	Username string `json:"username"`
@@ -47,6 +54,10 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
+	Success bool `json:"success"`
+}
+
+type NewGameResponse struct {
 	Success bool `json:"success"`
 }
 
@@ -147,7 +158,23 @@ type User struct {
 	Password string `json:"password"`
 }
 
-var users map[string]User
+type Game struct {
+	Score int `json:"score"`
+	Level int `json:"level"`
+}
+
+type HighScore struct {
+	Username string `json:"username"`
+	Score    int    `json:"score"`
+}
+
+var (
+	users           map[string]User
+	userGames       map[string][]Game
+	highScores      []HighScore
+	highScoresMutex sync.Mutex
+	userGamesMutex  sync.Mutex
+)
 
 func init() {
 	users = map[string]User{
@@ -155,6 +182,7 @@ func init() {
 		"user2": {ID: "2", Username: "user2", Password: "password2"},
 		"user3": {ID: "3", Username: "user3", Password: "password3"},
 	}
+	userGames = make(map[string][]Game)
 }
 
 func getLocalIP() (string, error) {
@@ -260,6 +288,7 @@ func handleConnection(connFd int, privPEM *rsa.PrivateKey) {
 	defer syscall.Close(connFd)
 	buffer := make([]byte, 1024)
 	logged := false
+	var userName string
 	var decodedAES []byte
 	for {
 		n, err := syscall.Read(connFd, buffer)
@@ -349,6 +378,7 @@ func handleConnection(connFd int, privPEM *rsa.PrivateKey) {
 				if login == incomingUser.Username && user.Password == incomingUser.Password {
 					logged = true
 					fmt.Printf("USER: %s logged \n", login)
+					userName = incomingUser.Username
 				}
 			}
 			data, err := json.Marshal(LoginResponse{
@@ -373,16 +403,67 @@ func handleConnection(connFd int, privPEM *rsa.PrivateKey) {
 			if err != nil {
 				log.Fatalln("Error during AES decryption:", err)
 			}
-			var user User
-			json.Unmarshal(decrypted, &user)
+			var newGame NewGameRequest
+			json.Unmarshal(decrypted, &newGame)
 			fmt.Println("Decrypted data:", string(decrypted))
-			siema := "siama witaj moj drugi czlowieku"
-			encyrption, err := EncryptAES(aesKey, []byte(siema))
+			score, err := strconv.Atoi(newGame.Score)
+			if err != nil {
+				log.Fatalln("ERROR during converting string to int")
+			}
+			level, err := strconv.Atoi(newGame.Level)
+			if err != nil {
+				log.Fatalln("ERROR during converting string to int")
+			}
+			updateHighScores(userName, score)
+			addGame(userName, score, level)
+
+			data, err := json.Marshal(NewGameResponse{
+				Success: true,
+			})
+
+			if err != nil {
+				log.Fatalln("ERROR DURING MARSHALING", err)
+			}
+			encyrption, err := EncryptAES(aesKey, data)
 			if err != nil {
 				log.Fatalln("ERRRR", err)
 			}
 			encrytedData := base64.StdEncoding.EncodeToString(encyrption)
 			syscall.Write(connFd, []byte(encrytedData))
+		case "view_high_scores":
+			var payload DefaultRequest
+			json.Unmarshal(ciphertext, &payload)
+			fmt.Println("DECRYPTING DATA", payload.Nonce, payload.CipherText, payload.Command)
+			aesKey, err := base64.StdEncoding.DecodeString(string(decodedAES))
+			if err != nil {
+				log.Fatalln("Error decoding AES key:", err)
+			}
+			decrypted, err := DecryptAES(aesKey, payload.Nonce, payload.CipherText)
+			if err != nil {
+				log.Fatalln("Error during AES decryption:", err)
+			}
+			var incomingRequest DefaultRequest
+			json.Unmarshal(decrypted, &incomingRequest)
+			fmt.Println("Decrypted data:", string(decrypted))
+
+			// Pobierz najwyższe wyniki
+			highScoresMutex.Lock()
+			highScoresResponse := highScores
+			highScoresMutex.Unlock()
+
+			data, err := json.Marshal(ViewHighScoresResponse{
+				HighScores: highScoresResponse,
+				Success:    true,
+			})
+			if err != nil {
+				log.Fatalln("ERROR DURING MARSHALING", err)
+			}
+			encryption, err := EncryptAES(aesKey, data)
+			if err != nil {
+				log.Fatalln("ERRRR", err)
+			}
+			encryptedData := base64.StdEncoding.EncodeToString(encryption)
+			syscall.Write(connFd, []byte(encryptedData))
 
 		case "player_move":
 			var payload PlayerMove
@@ -410,6 +491,44 @@ func handleConnection(connFd int, privPEM *rsa.PrivateKey) {
 			encrytedData := base64.StdEncoding.EncodeToString(encyrption)
 			syscall.Write(connFd, []byte(encrytedData))
 		}
+	}
+}
+
+func updateHighScores(username string, score int) {
+	highScoresMutex.Lock()
+	defer highScoresMutex.Unlock()
+
+	for i, hs := range highScores {
+		if hs.Username == username {
+			if score > hs.Score {
+				highScores[i].Score = score
+			}
+			sort.Slice(highScores, func(i, j int) bool {
+				return highScores[i].Score > highScores[j].Score
+			})
+			return
+		}
+	}
+	highScores = append(highScores, HighScore{Username: username, Score: score})
+	sort.Slice(highScores, func(i, j int) bool {
+		return highScores[i].Score > highScores[j].Score
+	})
+	if len(highScores) > 10 {
+		highScores = highScores[:10]
+	}
+}
+
+func addGame(username string, score int, level int) {
+	userGamesMutex.Lock()
+	defer userGamesMutex.Unlock()
+
+	game := Game{
+		Score: score,
+		Level: level,
+	}
+	userGames[username] = append(userGames[username], game)
+	if len(userGames[username]) > 10 {
+		userGames[username] = userGames[username][:10]
 	}
 }
 
