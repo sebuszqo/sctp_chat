@@ -27,6 +27,11 @@ type ViewHighScoresResponse struct {
 	Success    bool        `json:"success"`
 }
 
+type ViewLastGamesResponse struct {
+	LastGames []Game `json:"last_games"`
+	Success   bool   `json:"success"`
+}
+
 type RegisterRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -176,6 +181,7 @@ var (
 	userGamesMutex  sync.Mutex
 )
 
+// init sever with some testing data - will be migrated to be a postgres database
 func init() {
 	users = map[string]User{
 		"user1": {ID: "1", Username: "user1", Password: "password1"},
@@ -183,6 +189,10 @@ func init() {
 		"user3": {ID: "3", Username: "user3", Password: "password3"},
 	}
 	userGames = make(map[string][]Game)
+	updateHighScores("user1", 6)
+	updateHighScores("user2", 4)
+	updateHighScores("user3", 2)
+	addGame("user1", 5, 2)
 }
 
 func getLocalIP() (string, error) {
@@ -300,11 +310,10 @@ func handleConnection(connFd int, privPEM *rsa.PrivateKey) {
 			return
 		}
 		if n == 0 {
+			log.Printf("Client closed the connection")
 			return
 		}
 
-		fmt.Println("OTRZUMAELM?", string(buffer[:n]))
-		// return
 		log.Printf("Received encrypted message: %s", string(buffer[:n]))
 
 		// ciphertext := buffer
@@ -431,25 +440,25 @@ func handleConnection(connFd int, privPEM *rsa.PrivateKey) {
 			encrytedData := base64.StdEncoding.EncodeToString(encyrption)
 			syscall.Write(connFd, []byte(encrytedData))
 		case "view_high_scores":
-			var payload DefaultRequest
-			json.Unmarshal(ciphertext, &payload)
-			fmt.Println("DECRYPTING DATA", payload.Nonce, payload.CipherText, payload.Command)
+			// var payload DefaultRequest
+			// json.Unmarshal(ciphertext, &payload)
+			// fmt.Println("DECRYPTING DATA", payload.Nonce, payload.CipherText, payload.Command)
 			aesKey, err := base64.StdEncoding.DecodeString(string(decodedAES))
-			if err != nil {
-				log.Fatalln("Error decoding AES key:", err)
-			}
-			decrypted, err := DecryptAES(aesKey, payload.Nonce, payload.CipherText)
-			if err != nil {
-				log.Fatalln("Error during AES decryption:", err)
-			}
-			var incomingRequest DefaultRequest
-			json.Unmarshal(decrypted, &incomingRequest)
-			fmt.Println("Decrypted data:", string(decrypted))
+			// if err != nil {
+			// 	log.Fatalln("Error decoding AES key:", err)
+			// }
+			// decrypted, err := DecryptAES(aesKey, payload.Nonce, payload.CipherText)
+			// if err != nil {
+			// 	log.Fatalln("Error during AES decryption:", err)
+			// }
+			// var incomingRequest DefaultRequest
+			// json.Unmarshal(decrypted, &incomingRequest)
+			// fmt.Println("Decrypted data:", string(decrypted))
 
-			// Pobierz najwyższe wyniki
 			highScoresMutex.Lock()
 			highScoresResponse := highScores
 			highScoresMutex.Unlock()
+			fmt.Println("CURRENT HIGH SCORE: ", highScoresResponse)
 
 			data, err := json.Marshal(ViewHighScoresResponse{
 				HighScores: highScoresResponse,
@@ -464,7 +473,24 @@ func handleConnection(connFd int, privPEM *rsa.PrivateKey) {
 			}
 			encryptedData := base64.StdEncoding.EncodeToString(encryption)
 			syscall.Write(connFd, []byte(encryptedData))
+		case "view_last_games":
+			aesKey, err := base64.StdEncoding.DecodeString(string(decodedAES))
+			lastGames := viewLastGames(userName)
 
+			data, err := json.Marshal(ViewLastGamesResponse{
+				LastGames: lastGames,
+				Success:   true,
+			})
+			fmt.Println("RETURNING LAST GAMES: ", lastGames)
+			if err != nil {
+				log.Fatalln("ERROR DURING MARSHALING", err)
+			}
+			encryption, err := EncryptAES(aesKey, data)
+			if err != nil {
+				log.Fatalln("Error during AES encryption:", err)
+			}
+			encryptedData := base64.StdEncoding.EncodeToString(encryption)
+			syscall.Write(connFd, []byte(encryptedData))
 		case "player_move":
 			var payload PlayerMove
 			jsonPayload, _ := json.Marshal(msg.Payload)
@@ -516,6 +542,12 @@ func updateHighScores(username string, score int) {
 	if len(highScores) > 10 {
 		highScores = highScores[:10]
 	}
+}
+
+func viewLastGames(username string) []Game {
+	userGamesMutex.Lock()
+	defer userGamesMutex.Unlock()
+	return userGames[username]
 }
 
 func addGame(username string, score int, level int) {
