@@ -336,6 +336,6 @@ def main():
     #     print("No response received from server.")
     #     clientTCP.close()
     #     return
-# if __name__ == "__main__":
-#     main()
-#     print("Closing Client")
+if __name__ == "__main__":
+    main()
+    print("Closing Client")
