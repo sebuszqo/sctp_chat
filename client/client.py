@@ -195,6 +195,23 @@ class TCP_Client:
         }
         self.send_aes(json.dumps(message), "new_game")
         
+    def view_high_score(self):
+        result = json.dumps(
+            {
+                'command': "view_high_scores", 
+             }
+            )
+        encoded_message = base64.b64encode(result.encode('utf-8'))
+        self.sendMsg(encoded_message)
+    
+    def view_last_games(self):
+        result = json.dumps(
+            {
+                'command': "view_last_games",
+            }
+        )
+        encoded_message = base64.b64encode(result.encode('utf-8'))
+        self.sendMsg(encoded_message)
 
     def start_game(self, username, publicKey):
         message = {
