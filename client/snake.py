@@ -159,21 +159,27 @@ def login(stdscr, tcp_client):
             time.sleep(1)
             continue
 
-        tcp_client.login(username, password)
-        login_response = json.loads(tcp_client.recv_aes())
+        login_response = json.loads(login_response)
+        if login_response is None:
+            stdscr.clear()
+            stdscr.addstr("Connection lost or server error. Please try again later.\n")
+            stdscr.refresh()
+            time.sleep(2)
+            return False
+        
         if not login_response['success']:
             stdscr.clear()
             stdscr.addstr(f"Invalid credentials, try again!\n")
             stdscr.refresh()
             time.sleep(2)
             continue
-
+        
         curses.noecho()
         stdscr.clear()
         stdscr.addstr(f"Welcome {username}!\n")
         stdscr.refresh()
         stdscr.getch()
-        return username
+        return True
 
 def main_menu(stdscr, username, tcp_client):
     while True:

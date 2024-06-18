@@ -838,10 +838,8 @@ func main() {
 // dodalem szyfrowanie AES + RSA
 // w tym momencie dziala wymiana kluczy za pomoca RSA a nastepnie jest wysylana wiadomosc z komenda "siema"
 // i wtedy ona jest rozczytywana i mozna sobie normalnie odczytać tą wiadomość i jakoś coś zrobić :D
-// teraz ogarnac to do konca - kazda komenda z szyfrowaniem
+
 // dodac wlaczanie i wylacznie gry
-// dodac zapisywanie wynikow
 // dodac generowanie jedzonka z serwera podczas gry
-// dodac mozliwosc pobierania statystyk
-// dodac mozliwosc logowania
 // dodac mozliwosc rejestrowania sie
+// dodac ogarnięcie tego czy sockety się juz pozamykaly

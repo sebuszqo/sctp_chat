@@ -79,7 +79,7 @@ class TCP_Client:
             raise
     
     def generate_aes_key(self):
-        key = get_random_bytes(32)  # Generowanie 16-bajtowego klucza AES (AES-128)
+        key = get_random_bytes(32)
         return key
     
     def sendMsg(self, message: str):
@@ -89,13 +89,18 @@ class TCP_Client:
         except socket.error as e:
             print(f"Failed to send message. Error: {e}")
             return None
-
+        
     def recvMsg(self, buffer_size=1024):
         try:
             message = self.client_socket.recv(buffer_size)
+            if not message:
+                print("Connection closed by the server.")
+                self.close()
+                return None
             return message.decode('utf-8')
         except socket.error as e:
             print(f"Failed to receive message. Error: {e}")
+            self.close()
             return None
     
     # def decrypt_aes(self, encrypted_message, aes_key):
@@ -151,6 +156,8 @@ class TCP_Client:
 
     def recv_aes(self) -> str:
         base64Message = self.recvMsg(1024)
+        if base64Message is None:
+            return None
         try:
             decoded_message = base64.b64decode(base64Message)
             b64 = json.loads(decoded_message)
@@ -162,6 +169,7 @@ class TCP_Client:
             return pt.decode('utf-8')
         except (ValueError, KeyError) as e:
             print("Incorrect decryption", e)
+            return None
     
     def challange(self, publicKey):
         print("AES KEY," ,base64.b64encode(self.aes_key).decode('utf-8'))
