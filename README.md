@@ -1,6 +1,17 @@
 # SNAKE NETWORK GAME
 
-Project currently in development stage
+## Overview
+
+This project is currently in the development stage and features a multi-player Snake game. 
+
+The server backend is implemented in Go, utilizing socket syscalls for efficient network communication. 
+The client-side interface and the game logic are developed in Python, providing a smooth and interactive gaming experience.
+
+### Key Features
+
+- **Server:** Written in Golang, the server harnesses the power of low-level socket syscalls to manage real-time multiplayer game states efficiently.
+- **Client and Game Logic:** Both are crafted in Python, designed to offer intuitive gameplay and dynamic interaction between users.
+
 
 ## Pre-requisites:
 - Install Docker and Docker Compose
