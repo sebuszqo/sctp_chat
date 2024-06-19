@@ -8,6 +8,7 @@ import (
 	"log"
 	"strconv"
 	"syscall"
+	"time"
 )
 
 func HandleRegister(connFd int, msg Message) {
@@ -82,8 +83,10 @@ func HandleNewGame(connFd int, msg Message, cipherText []byte, privPEM *rsa.Priv
 		log.Fatalln("ERROR during converting string to int")
 	}
 	log.Println("Updating High Scores and Adding new Game to user's game list")
+
 	UpdateHighScores(userName, score)
-	AddGame(userName, score, level)
+
+	AddGame(userName, score, level, time.Now().Format(time.RFC3339))
 
 	data, err := json.Marshal(NewGameResponse{
 		Success: true,
@@ -106,7 +109,7 @@ func HandleViewHighScores(connFd int, decodedAES []byte) {
 	highScoresMutex.Lock()
 	highScoresResponse := highScores
 	highScoresMutex.Unlock()
-	fmt.Println("CURRENT HIGH SCORE: ", highScoresResponse)
+	log.Println("CURRENT HIGH SCORE: ", highScoresResponse)
 
 	data, err := json.Marshal(ViewHighScoresResponse{
 		HighScores: highScoresResponse,

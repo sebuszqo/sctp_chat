@@ -40,13 +40,14 @@ func ViewLastGames(username string) []Game {
 	return userGames[username]
 }
 
-func AddGame(username string, score int, level int) {
+func AddGame(username string, score int, level int, time string) {
 	userGamesMutex.Lock()
 	defer userGamesMutex.Unlock()
 
 	game := Game{
 		Score: score,
 		Level: level,
+		Time:  time,
 	}
 	userGames[username] = append(userGames[username], game)
 	if len(userGames[username]) > 10 {

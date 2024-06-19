@@ -129,8 +129,9 @@ type User struct {
 }
 
 type Game struct {
-	Score int `json:"score"`
-	Level int `json:"level"`
+	Score int    `json:"score"`
+	Level int    `json:"level"`
+	Time  string `json:"time"`
 }
 
 type HighScore struct {

@@ -40,10 +40,10 @@ func init() {
 	UpdateHighScores("user1", 6)
 	UpdateHighScores("user2", 4)
 	UpdateHighScores("user3", 2)
-	AddGame("user1", 5, 2)
-	AddGame("user1", 7, 3)
-	AddGame("user1", 1, 1)
-	AddGame("user2", 5, 2)
+	AddGame("user2", 5, 2, time.Now().Format(time.RFC3339))
+	AddGame("user1", 0, 1, time.Now().Format(time.RFC3339))
+	AddGame("user1", 1, 1, time.Now().Format(time.RFC3339))
+	AddGame("user2", 5, 2, time.Now().Format(time.RFC3339))
 }
 
 func GetLocalIP() (string, error) {

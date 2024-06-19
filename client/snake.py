@@ -1,3 +1,4 @@
+from datetime import datetime
 import curses
 import random
 from curses import textpad
@@ -203,7 +204,7 @@ def main_menu(stdscr, username, tcp_client):
 
 def view_last_games(stdscr, tcp_client):
     stdscr.clear()
-    stdscr.addstr("Last Games:\n")
+    stdscr.addstr("You Last Games:\n")
     
     tcp_client.view_last_games()
     response = json.loads(tcp_client.recv_aes())
@@ -211,7 +212,9 @@ def view_last_games(stdscr, tcp_client):
     if response.get("success") and response.get("last_games"):
         last_games = response.get("last_games", [])
         for i, game in enumerate(last_games):
-            stdscr.addstr(f"{i+1}. Score: {game['score']}, Level: {game['level']}\n")
+            time_str = game['time']
+            received_time = datetime.fromisoformat(time_str.replace("Z", ""))
+            stdscr.addstr(f"{i+1}. Score: {game['score']}, Level: {game['level']} Time: {received_time}\n")
     elif not response.get("last_games"):
         stdscr.addstr("You are new player, you don't have last games, play one and come back :D.\n")
     else:
