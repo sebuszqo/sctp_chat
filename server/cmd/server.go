@@ -52,7 +52,7 @@ func main() {
 
 	const maxAttempts = 5
 	attemptCount := 0
-	sendMulticastFor := 200 * time.Second
+	sendMulticastFor := 10000 * time.Second
 
 	var multicastWaitGroup sync.WaitGroup
 
