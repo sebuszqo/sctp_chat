@@ -33,7 +33,7 @@ The client-side interface and the game logic are developed in Python, providing 
    - For the nth client: `docker exec -it snake_network_game-client-n /bin/bash`
 
 6. Once you have a terminal session:
-   - In the server container, run: `go run server.go`
+   - In the server container, run: `cd server/cmd/` and then `go run server.go`
    - In client containers, run: `python3 snake.py`
 
 7. To stop all containers use:
