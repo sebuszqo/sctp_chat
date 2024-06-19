@@ -17,7 +17,7 @@ services:
       context: ./server
       dockerfile: Dockerfile
     volumes:
-      - ./server:/app
+      - ./:/app
     networks:
       - mynetwork
     stdin_open: true 
