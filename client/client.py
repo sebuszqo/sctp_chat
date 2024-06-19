@@ -103,26 +103,13 @@ class TCP_Client:
             self.close()
             return None
     
-    # def decrypt_aes(self, encrypted_message, aes_key):
-    #     decoded = base64.b64decode(encrypted_message)
-    #     nonce, tag, ciphertext = decoded[:16], decoded[16:32], decoded[32:]
-    #     cipher_aes = AES.new(aes_key, AES.MODE_GCM, nonce=nonce)
-    #     plaintext = cipher_aes.decrypt(cipher_aes)
-    #     return plaintext.decode('utf-8')
-            
+   
     def encrypt_message(self, message, public_key_pem):
-        # message = base64.encode(message, message)
         message = bytes(message, 'utf-8')
         print("DLUGOSC",len( message))
         key = RSA.importKey(public_key_pem)
         cipher = PKCS1_OAEP.new(key, SHA512)
         ciphertext = cipher.encrypt(message)
-        # key = RSA.importKey(open('private.pem').read())
-        # cipher = PKCS1_OAEP.new(key)
-        # message = cipher.decrypt(ciphertext)
-        # print("MESSAGE",message)
-        # encrypted_message_b64 = base64.b64encode(encrypted_message)
-        # print(f"Encrypted message (Base64): {encrypted_message_b64.decode('utf-8')}")  # Logowanie zaszyfrowanej wiadomości
         return base64.b64encode(ciphertext).decode('utf-8')
 
     def send_encrypted_message(self, message, public_key_pem):
@@ -258,8 +245,6 @@ def receive_udp_multicast() -> ServerInfo:
             try:
                 server_info = ServerInfo.model_validate_json(data.decode())
                 print(f"Received valid server info from {server_info.TCPConn.full_address()} - {server_info.Name}")
-                # print(f"Public Key: {server_info.PublicKey}")
-                # print("SERVER", server_info)
                 break
             except ValidationError as ve:
                 print(f"Validation error: {ve}")
@@ -281,86 +266,16 @@ def main():
     except socket.error as e:
         print(f"Could not create client: {e}")
 
-    # # print(f"AES key: {aes_key}")
-    # # challange = clientTCP.generate_challenge()
     print(clientTCP.challange(server_info.PublicKey))
-    # # encrypted_message = clientTCP.recvMsg(1024)
-    # print(str(encrypted_message))
-    # decrypted_response = clientTCP.decrypt_aes(aes_key, str(encrypted_message))
-    # print(decrypted_response)
-    # print("DECRYPTED STRING", str(decrypted_response.decode('utf-8')))
-    # response_data = json.loads(decrypted_response)
-    # print(response_data)
 
-
-    #  to dziala
-    # key = get_random_bytes(32)
-    # challange = get_random_bytes(8)
-    # id = uuid.uuid4()
-
-    # message = {
-    #         'command': 'siema',
-    #         'aes_key': base64.b64encode(key).decode('utf-8'),
-    #     }
-    # clientTCP.send_encrypted_message(message, server_info.PublicKey)
-    # data = json.dumps(message)
-
-    # tu jest AES
-    
-    # key = get_random_bytes(32)
     clientTCP.login("user1", "password1")
-    # data = {"username": "user1", "password": "password1"}
-    # clientTCP.send_aes(json.dumps(data), "login")
-    # print("RECEIVED MESASGE DECRYPTED:", clientTCP.recv_aes(aes_key))
     login_response = json.loads(clientTCP.recv_aes())
     print("LOGIN RESPONSE", login_response)
     print("WUTAJ W GRZE GRACZU")
-    # score, level = start_game()
-    # data = {"score": f"{score}", "level": f"{level}"}
-    # clientTCP.send_aes(json.dumps(data), "new_game")
     clientTCP.new_game(2,1)
     print(clientTCP.recv_aes())
     
-    # cipher = AES.new(aes_key, AES.MODE_CTR)
-    # ct_bytes = cipher.encrypt(data.encode('utf-8'))
-    # nonce = base64.b64encode(cipher.nonce).decode('utf-8')
-    # ct = base64.b64encode(ct_bytes).decode('utf-8')
-    # result = json.dumps({'command': "siema", 'nonce': nonce, 'cipher_text': ct})
-
-    # print("Key:", base64.b64encode(aes_key).decode('utf-8'))
-    # encoded_message = base64.b64encode(result.encode('utf-8'))
-    # clientTCP.sendMsg(encoded_message)
-    # base64Message = clientTCP.recvMsg(1024)
-    
-    # try:
-    #     decoded_message = base64.b64decode(base64Message)
-    #     b64 = json.loads(decoded_message)
-    #     nonce = base64.b64decode(b64['nonce'])
-    #     ct = base64.b64decode(b64['cipher_text'])
-    #     # print("New nonce", str(nonce.decode("utf-8")))
-    #     # print("New ct", str(ct.decode("utf-8")))
-    #     cipher = AES.new(aes_key, AES.MODE_CTR, nonce=nonce)
-    #     pt = cipher.decrypt(ct)
-    #     print("The message was:", pt.decode('utf-8'))
-    # except (ValueError, KeyError) as e:
-    #     print("Incorrect decryption", e)
-    # print(clientTCP.register('player1', 'password123', server_info.PublicKey))
-    # message = "Hello, server !"
-    # sendMsg = clientTCP.sendMsg(message)
-    # if sendMsg is not None:
-    #     print(f"Send to server server: {message}")
-    # else:
-    #     print("No response send to server.")
-    #     clientTCP.close()
-    #     return
-    
-    # recvMsg = clientTCP.recvMsg()
-    # if recvMsg is not None:
-    #     print(f"Received from server: {recvMsg}")
-    # else:
-    #     print("No response received from server.")
-    #     clientTCP.close()
-    #     return
-if __name__ == "__main__":
-    main()
-    print("Closing Client")
+   
+# if __name__ == "__main__":
+#     main()
+#     print("Closing Client")

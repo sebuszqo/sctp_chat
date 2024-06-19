@@ -313,19 +313,6 @@ func handleConnection(connFd int, privPEM *rsa.PrivateKey) {
 			log.Printf("Client closed the connection \n")
 			return
 		}
-
-		// log.Printf("Received encrypted message: %s", string(buffer[:n]))
-
-		// ciphertext := buffer
-		// fmt.Println("CIPER", ciphertext)
-		// b64data := ciphertext[strings.IndexByte(string(ciphertext), ',')+1:]
-		// fmt.Println("B64", b64data)
-		// cipherTexttoDe, err := base64.StdEncoding.DecodeString(string(b64data))
-		// fmt.Println(cipherTexttoDe)
-		// if err != nil {
-		// log.Fatalln("ERROR TU", err)
-		// }
-		//  dodalem tutaj to
 		ciphertext, err := base64.StdEncoding.DecodeString(string(buffer[:n]))
 		if err != nil {
 			log.Println("BŁ/*  */")
@@ -374,7 +361,7 @@ func handleConnection(connFd int, privPEM *rsa.PrivateKey) {
 		case "login":
 			var payload DefaultRequest
 			json.Unmarshal(ciphertext, &payload)
-			fmt.Println("DECRYPTING DATA", payload.Nonce, payload.CipherText, payload.Command)
+			// fmt.Println("DECRYPTING DATA", payload.Nonce, payload.CipherText, payload.Command)
 			aesKey, err := base64.StdEncoding.DecodeString(string(decodedAES))
 			decrypted, err := DecryptAES(aesKey, payload.Nonce, payload.CipherText)
 			if err != nil {
@@ -406,7 +393,7 @@ func handleConnection(connFd int, privPEM *rsa.PrivateKey) {
 		case "new_game":
 			var payload DefaultRequest
 			json.Unmarshal(ciphertext, &payload)
-			fmt.Println("DECRYPTING DATA", payload.Nonce, payload.CipherText, payload.Command)
+			// fmt.Println("DECRYPTING DATA", payload.Nonce, payload.CipherText, payload.Command)
 			aesKey, err := base64.StdEncoding.DecodeString(string(decodedAES))
 			decrypted, err := DecryptAES(aesKey, payload.Nonce, payload.CipherText)
 			if err != nil {
@@ -440,21 +427,7 @@ func handleConnection(connFd int, privPEM *rsa.PrivateKey) {
 			encrytedData := base64.StdEncoding.EncodeToString(encyrption)
 			syscall.Write(connFd, []byte(encrytedData))
 		case "view_high_scores":
-			// var payload DefaultRequest
-			// json.Unmarshal(ciphertext, &payload)
-			// fmt.Println("DECRYPTING DATA", payload.Nonce, payload.CipherText, payload.Command)
 			aesKey, err := base64.StdEncoding.DecodeString(string(decodedAES))
-			// if err != nil {
-			// 	log.Fatalln("Error decoding AES key:", err)
-			// }
-			// decrypted, err := DecryptAES(aesKey, payload.Nonce, payload.CipherText)
-			// if err != nil {
-			// 	log.Fatalln("Error during AES decryption:", err)
-			// }
-			// var incomingRequest DefaultRequest
-			// json.Unmarshal(decrypted, &incomingRequest)
-			// fmt.Println("Decrypted data:", string(decrypted))
-
 			highScoresMutex.Lock()
 			highScoresResponse := highScores
 			highScoresMutex.Unlock()
@@ -497,25 +470,6 @@ func handleConnection(connFd int, privPEM *rsa.PrivateKey) {
 			log.Printf("ENCRYPTED PAYLOAD: %s \n", jsonPayload)
 			json.Unmarshal(jsonPayload, &payload)
 			log.Printf("DECRYPTED PAYLOAD: %+v \n", payload)
-		case "siema":
-			var payload DefaultRequest
-			json.Unmarshal(ciphertext, &payload)
-			fmt.Println("DECRYPTING DATA", payload.Nonce, payload.CipherText, payload.Command)
-			aesKey, err := base64.StdEncoding.DecodeString(string(decodedAES))
-			decrypted, err := DecryptAES(aesKey, payload.Nonce, payload.CipherText)
-			if err != nil {
-				log.Fatalln("Error during AES decryption:", err)
-			}
-			var user User
-			json.Unmarshal(decrypted, &user)
-			fmt.Println("Decrypted data:", string(decrypted))
-			siema := "siama witaj moj drugi czlowieku"
-			encyrption, err := EncryptAES(aesKey, []byte(siema))
-			if err != nil {
-				log.Fatalln("ERRRR", err)
-			}
-			encrytedData := base64.StdEncoding.EncodeToString(encyrption)
-			syscall.Write(connFd, []byte(encrytedData))
 		}
 	}
 }
@@ -609,37 +563,6 @@ func sendMulticast(multicastGroup string, serverInfo []byte, fd int, poll time.D
 		}
 	}
 }
-
-// func GenerateKeyPair() (*KeyPair, error) {
-// 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	publicKey := &privateKey.PublicKey
-
-// 	// Marshalowanie klucza prywatnego do PEM
-// 	privateKeyBytes := x509.MarshalPKCS1PrivateKey(privateKey)
-// 	privateKeyPEM := pem.EncodeToMemory(&pem.Block{
-// 		Type:  "RSA PRIVATE KEY",
-// 		Bytes: privateKeyBytes,
-// 	})
-
-// 	// Marshalowanie klucza publicznego do PEM
-// 	publicKeyBytes, err := x509.MarshalPKIXPublicKey(publicKey)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	publicKeyPEM := pem.EncodeToMemory(&pem.Block{
-// 		Type:  "RSA PUBLIC KEY",
-// 		Bytes: publicKeyBytes,
-// 	})
-
-// 	return &KeyPair{
-// 		PublicKey:  string(publicKeyPEM),
-// 		PrivateKey: string(privateKeyPEM),
-// 	}, nil
-// }
 
 func GenerateKeyPair(bits int) (KeyPair, error) {
 	privkey, err := rsa.GenerateKey(rand.Reader, bits)
@@ -834,12 +757,3 @@ func main() {
 
 	fmt.Println("More than 5 attempts to restart multicast, closing app...")
 }
-
-// // dodalem szyfrowanie AES + RSA
-// // w tym momencie dziala wymiana kluczy za pomoca RSA a nastepnie jest wysylana wiadomosc z komenda "siema"
-// // i wtedy ona jest rozczytywana i mozna sobie normalnie odczytać tą wiadomość i jakoś coś zrobić :D
-
-// // dodac wlaczanie i wylacznie gry
-// // dodac generowanie jedzonka z serwera podczas gry
-// // dodac mozliwosc rejestrowania sie
-// // dodac ogarnięcie tego czy sockety się juz pozamykaly
